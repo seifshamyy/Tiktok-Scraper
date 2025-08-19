@@ -15,7 +15,7 @@ def setup_driver():
     firefox_options = Options()
     firefox_options.add_argument("--width=1920")
     firefox_options.add_argument("--height=1080")
-    firefox_options.add_argument("--headless")  # Run headless for servers
+    firefox_options.add_argument("--headless")
     firefox_options.add_argument("--disable-gpu")
     firefox_options.add_argument("--no-sandbox")
     firefox_options.add_argument("--disable-dev-shm-usage")
@@ -26,18 +26,18 @@ def setup_driver():
     return driver
 
 
-def scroll_page(driver, scrolls=30):
+def scroll_page(driver, scrolls=50, delay=4):
     """Scroll down the page to load more content"""
     for i in range(scrolls):
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
+        time.sleep(delay)  # longer wait to let videos load
         print(f"   Scrolled {i+1}/{scrolls} times...")
 
 
-def extract_tiktok_links(search_query, output_file="tiktok_links.csv", max_scrolls=30):
+def extract_tiktok_links(search_query, output_file="tiktok_links.csv", max_scrolls=50):
     """Extract TikTok video links from search results"""
     driver = setup_driver()
-    video_links = []
+    video_links = set()  # use set for auto-deduplication
 
     try:
         search_url = f"https://www.tiktok.com/search?lang=en&q={search_query}"
@@ -45,7 +45,7 @@ def extract_tiktok_links(search_query, output_file="tiktok_links.csv", max_scrol
         driver.get(search_url)
 
         print("⏳ Waiting for page to load...")
-        time.sleep(5)
+        time.sleep(7)
 
         print("📜 Scrolling page...")
         scroll_page(driver, max_scrolls)
@@ -54,36 +54,36 @@ def extract_tiktok_links(search_query, output_file="tiktok_links.csv", max_scrol
             "a[href*='/video/']",
             "div[data-e2e='search-result'] a",
             "[data-e2e='search-result-video'] a",
+            "div[data-e2e='search-video-item'] a"
         ]
 
-        print("🔍 Looking for video links...")
+        print("🔍 Extracting video links from all selectors...")
         for selector in selectors_to_try:
             try:
                 elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                before_count = len(video_links)
                 for element in elements:
                     href = element.get_attribute("href")
                     if href and "/video/" in href:
-                        video_links.append(href)
-                if video_links:
-                    break
-            except Exception:
+                        video_links.add(href)
+                print(f"   Selector '{selector}' → found {len(video_links) - before_count} new links")
+            except Exception as e:
+                print(f"   Error with selector {selector}: {e}")
                 continue
 
-        unique_links = list(dict.fromkeys(video_links))
-
-        if not unique_links:
+        if not video_links:
             print("⚠️ No links found. TikTok may block bots or require login.")
             return []
 
         # Save CSV locally
+        print(f"💾 Saving {len(video_links)} unique links to {output_file}...")
         with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(["Video_Link", "Index", "Search_Term"])
-            for idx, link in enumerate(unique_links, 1):
+            for idx, link in enumerate(video_links, 1):
                 writer.writerow([link, idx, search_query])
 
-        print(f"✅ Saved {len(unique_links)} links to {output_file}")
-        return unique_links
+        return list(video_links)
 
     except TimeoutException:
         print("❌ Timeout: Page took too long to load.")
@@ -112,9 +112,9 @@ def main():
     print("🦊 TikTok Scraper Starting...")
     print("=" * 60)
 
-    search_term = "عقارات"  # Change as needed
+    search_term = "عقارات"
     output_filename = "tiktok_links_firefox.csv"
-    scroll_count = 30  # Increased scrolls
+    scroll_count = 50  # more scrolls for better coverage
     webhook_url = "https://primary-production-9e01d.up.railway.app/webhook/64226a93-e904-494e-b4eb-6b5db7503d89"
 
     links = extract_tiktok_links(search_term, output_filename, scroll_count)
@@ -130,3 +130,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
