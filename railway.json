@@ -1,0 +1,21 @@
+{
+  "build": {
+    "builder": "Dockerfile"
+  },
+  "deploy": {
+    "startCommand": "python tiktok.py"
+  },
+  "plugins": {},
+  "schedules": [
+    {
+      "command": "python tiktok.py",
+      "cron": "0 8 * * *",
+      "timezone": "Africa/Cairo"
+    },
+    {
+      "command": "python tiktok.py",
+      "cron": "0 12 * * *",
+      "timezone": "Africa/Cairo"
+    }
+  ]
+}
